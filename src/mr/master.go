@@ -144,11 +144,12 @@ func MakeMaster(files []string, nReduce int) *Master {
 	// Your code here.
 	cnt := 0
 	for i, filename := range files {
-		m.MapList = append(m.MapList, MapReduceTask{i, TaskMap, NOTASSIGNED, [...]string{filename}, time.Now(), nReduce})
+		s := []string{filename}
+		m.MapList = append(m.MapList, MapReduceTask{i, TaskMap, NOTASSIGNED, s, time.Now(), nReduce})
 		cnt += 1
 	}
 	for i := 0; i < nReduce; i++ {
-		m.ReduceList = append(m.ReduceList, MapReduceTask{i, TaskReduce, NOTASSIGNED, [...]string{}, time.Now(), cnt})
+		m.ReduceList = append(m.ReduceList, MapReduceTask{i, TaskReduce, NOTASSIGNED, []string{}, time.Now(), cnt})
 
 	}
 	m.server()
