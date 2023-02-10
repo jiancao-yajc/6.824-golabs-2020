@@ -98,7 +98,7 @@ func (m *Master) handler(args *Taskargs, reply *TaskReply) error {
 
 	}
 
-	m.mu.Lock()
+	m.mu.Unlock()
 	return nil
 }
 
