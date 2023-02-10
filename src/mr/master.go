@@ -110,7 +110,6 @@ func (m *Master) Handler(args *Taskargs, reply *TaskReply) error {
 	}
 
 	m.mu.Unlock()
-
 	return nil
 }
 
