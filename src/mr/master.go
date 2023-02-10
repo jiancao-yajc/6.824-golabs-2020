@@ -1,6 +1,7 @@
 package mr
 
 import (
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -39,21 +40,24 @@ type Master struct {
 	MapList    []MapReduceTask
 	ReduceList []MapReduceTask
 
-	MapDone    bool
-	ReduceDone bool
+	MapDone    int
+	ReduceDone int
 	mu         sync.Mutex
 }
 
 // Your code here -- RPC handlers for the worker to call.
 // the RPC argument and reply types are defined in rpc.go.
 //
-func (m *Master) handler(args *Taskargs, reply *TaskReply) error {
+func (m *Master) Handler(args *Taskargs, reply *TaskReply) error {
+	fmt.Println(len(m.MapList))
 	m.mu.Lock()
+	fmt.Println("status", m.MapDone, m.ReduceDone)
 	var t MapReduceTask
-	if m.MapDone && m.ReduceDone {
+	if m.MapDone == 0 && m.ReduceDone == 0 {
 		t.Type = TaskEnd
+		reply.Task = t
 	} else if args.MessageType == RequestTask {
-		if m.MapDone == false {
+		if m.MapDone != 0 {
 			flag := false
 			for _, tmp := range m.MapList {
 				if tmp.State == NOTASSIGNED {
@@ -68,7 +72,7 @@ func (m *Master) handler(args *Taskargs, reply *TaskReply) error {
 				t.Type = TaskWait
 				reply.Task = t
 			}
-		} else {
+		} else if m.ReduceDone != 0 {
 			flag := false
 			for _, tmp := range m.ReduceList {
 				if tmp.State == NOTASSIGNED {
@@ -88,17 +92,25 @@ func (m *Master) handler(args *Taskargs, reply *TaskReply) error {
 		if args.Task.Type == TaskMap {
 			for _, f := range args.Task.Filename {
 				strArr := strings.Split(f, "-")
-				idx, _ := strconv.Atoi(strArr[2])
-				m.ReduceList[idx].Filename = append(m.ReduceList[idx].Filename, f)
+				idx, _ := strconv.Atoi(strArr[1])
+				reduceidx, _ := strconv.Atoi(strArr[2])
+				m.MapList[idx].State = FINISHED
+				m.MapList[idx].Type = TaskEnd
+				fmt.Println(reduceidx, idx, "map", f, strArr)
+				m.MapDone -= 1
+				m.ReduceList[reduceidx].Filename = append(m.ReduceList[reduceidx].Filename, f)
 			}
 		} else {
+			m.ReduceDone -= 1
 			m.ReduceList[args.Task.Index].State = FINISHED
 			m.ReduceList[args.Task.Index].Type = TaskEnd
+			fmt.Println(m.ReduceDone, args.MessageType, "FinishTask")
 		}
-
+		fmt.Println(args.MessageType, "FinishTask")
 	}
 
-	m.mu.Lock()
+	m.mu.Unlock()
+
 	return nil
 }
 
@@ -108,7 +120,7 @@ func (m *Master) handler(args *Taskargs, reply *TaskReply) error {
 func (m *Master) server() {
 	rpc.Register(m)
 	rpc.HandleHTTP()
-	//l, e := net.Listen("tcp", ":1234")
+	// l, e := net.Listen("tcp", ":1234")
 	sockname := masterSock()
 	os.Remove(sockname)
 	l, e := net.Listen("unix", sockname)
@@ -127,7 +139,7 @@ func (m *Master) Done() bool {
 	// Your code here.
 
 	m.mu.Lock()
-	ret = m.ReduceDone && m.MapDone
+	ret = m.ReduceDone == 0 && m.MapDone == 0
 	m.mu.Unlock()
 
 	return ret
@@ -152,6 +164,8 @@ func MakeMaster(files []string, nReduce int) *Master {
 		m.ReduceList = append(m.ReduceList, MapReduceTask{i, TaskReduce, NOTASSIGNED, []string{}, time.Now(), cnt})
 
 	}
+	m.MapDone = cnt
+	m.ReduceDone = nReduce
 	m.server()
 	return &m
 }
